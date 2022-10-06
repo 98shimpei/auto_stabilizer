@@ -115,7 +115,7 @@ public:
 
   */
   bool calcFootSteps(const GaitParam& gaitParam, const double& dt, bool useActState,
-                     std::vector<GaitParam::FootStepNodes>& o_footstepNodesList) const;
+                     std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<double>& forDebug) const;
 
 protected:
   // 早づきしたらremainTimeをdtに減らしてすぐに次のnodeへ移る. この機能が無いと少しでもロボットが傾いて早づきするとジャンプするような挙動になる.
@@ -130,7 +130,9 @@ protected:
   // emergengy step.
   void checkEmergencyStep(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam) const;
   // 着地位置・タイミング修正
-  void modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam) const;
+  void modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam, std::vector<double>& forDebug) const;
+  //reachable capture region の計算
+  void calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const cnoid::Vector3& actDCM, const GaitParam::FootStepNodes& footstepNode, const std::vector<cpp_filters::TwoPointInterpolatorSE3>& genCoords, const double& omega, const double& minTime, const double& maxTime, std::vector<double>& forDebug) const;
 
   // footstepNodesList[idx:] idxより先のstepの位置をgenerate frameで(左から)transformだけ動かす
   void transformFutureSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, int index, const cnoid::Position& transform/*generate frame*/) const;

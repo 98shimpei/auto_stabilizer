@@ -33,6 +33,8 @@ public:
 
   std::vector<bool> jointControllable; // 要素数と順序はnumJoints()と同じ. falseの場合、qやtauはrefの値をそのまま出力する(writeOutputPort時にref値で上書き). IKでは動かさない(ref値をそのまま). トルク計算では目標トルクを通常通り計算する. このパラメータはMODE_IDLEのときにしか変更されない
 
+  std::vector<double> forDebug;
+
 public:
   // from reference port
   cnoid::BodyPtr refRobotRaw; // reference. reference world frame
@@ -128,6 +130,7 @@ public:
     maxTorque.resize(robot->numJoints(), std::numeric_limits<double>::max());
     jointLimitTables.resize(robot->numJoints());
     jointControllable.resize(robot->numJoints(), true);
+    forDebug.resize(33, 0.0);
     refRobotRaw = robot->clone();
     refRobotRaw->calcForwardKinematics(); refRobotRaw->calcCenterOfMass();
     actRobotRaw = robot->clone();

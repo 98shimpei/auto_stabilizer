@@ -9,6 +9,8 @@ main:
       - { key: ast_actDcmOut, id: [0]}
       - { key: ast_dstLandingPosOut, id: [0]}
       - { key: ast_dstLandingPosOut, id: [3]}
+      - { key: ast_tmpOut, id: [0]}
+      - { key: ast_tmpOut, id: [2]}
     bottom_label:
 
   cog zmp Y:
@@ -21,6 +23,8 @@ main:
       - { key: ast_actDcmOut, id: [1]}
       - { key: ast_dstLandingPosOut, id: [1]}
       - { key: ast_dstLandingPosOut, id: [4]}
+      - { key: ast_tmpOut, id: [1]}
+      - { key: ast_tmpOut, id: [3]}
     bottom_label:
 
   cog zmp Z:

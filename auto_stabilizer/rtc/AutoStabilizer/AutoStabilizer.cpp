@@ -46,6 +46,7 @@ AutoStabilizer::Ports::Ports() :
   m_actDcmOut_("actDcmOut", m_actDcm_),
   m_dstLandingPosOut_("dstLandingPosOut", m_dstLandingPos_),
   m_remainTimeOut_("remainTimeOut", m_remainTime_),
+  m_tmpOut_("tmpOut", m_tmp_),
 
   m_AutoStabilizerServicePort_("AutoStabilizerService"),
 
@@ -83,6 +84,7 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
   this->addOutPort("actDcmOut", this->ports_.m_actDcmOut_);
   this->addOutPort("dstLandingPosOut", this->ports_.m_dstLandingPosOut_);
   this->addOutPort("remainTimeOut", this->ports_.m_remainTimeOut_);
+  this->addOutPort("tmpOut", this->ports_.m_tmpOut_);
   this->ports_.m_AutoStabilizerServicePort_.registerProvider("service0", "AutoStabilizerService", this->ports_.m_service0_);
   this->addPort(this->ports_.m_AutoStabilizerServicePort_);
   this->ports_.m_RobotHardwareServicePort_.registerConsumer("service0", "RobotHardwareService", this->ports_.m_robotHardwareService0_);
@@ -464,7 +466,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
   footStepGenerator.procFootStepNodesList(gaitParam, dt, mode.isSTRunning(),
                                           gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.elapsedTime, gaitParam.prevSupportPhase);
   footStepGenerator.calcFootSteps(gaitParam, dt, mode.isSTRunning(),
-                                  gaitParam.footstepNodesList);
+                                  gaitParam.footstepNodesList, gaitParam.forDebug);
   legCoordsGenerator.calcLegCoords(gaitParam, dt, mode.isSTRunning(),
                                    gaitParam.refZmpTraj, gaitParam.genCoords, gaitParam.swingState);
   legCoordsGenerator.calcCOMCoords(gaitParam, dt,
@@ -660,6 +662,16 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
     ports.m_remainTime_.data.length(1);
     ports.m_remainTime_.data[0] = gaitParam.footstepNodesList[0].remainTime;
     ports.m_remainTimeOut_.write();
+
+    if (gaitParam.forDebug[32]>0.5) {
+      std::cout << "tm: " << ports.m_qRef_.tm.sec << " " << ports.m_qRef_.tm.nsec << std::endl;
+    }
+    ports.m_tmp_.tm = ports.m_qRef_.tm;
+    ports.m_tmp_.data.length(gaitParam.forDebug.size());
+    for (int i = 0; i < gaitParam.forDebug.size(); i++) {
+      ports.m_tmp_.data[i] = gaitParam.forDebug[i];
+    }
+    ports.m_tmpOut_.write();
     for(int i=0;i<gaitParam.eeName.size();i++){
       ports.m_actEEPose_[i].tm = ports.m_qRef_.tm;
       ports.m_actEEPose_[i].data.position.x = gaitParam.actEEPose[i].translation()[0];

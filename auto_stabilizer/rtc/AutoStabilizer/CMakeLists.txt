@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   )
 find_package(choreonoid REQUIRED)
 find_package(OsqpEigen REQUIRED)
+find_package(OpenCV REQUIRED)
 
 find_package(PkgConfig)
 pkg_check_modules(openrtm_aist openrtm-aist REQUIRED)
@@ -25,6 +26,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${CHOREONOID_INCLUDE_DIRS}
   ${openrtm_aist_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
   $<TARGET_PROPERTY:OsqpEigen::OsqpEigen,INTERFACE_INCLUDE_DIRECTORIES>
   )
 link_directories(
@@ -48,6 +50,7 @@ add_library(AutoStabilizer SHARED
   )
 target_link_libraries(AutoStabilizer
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
   ${CHOREONOID_BODY_LIBRARIES}
   ${openrtm_aist_LIBRARIES}
   ${${PROJECT_NAME}_IDLLIBRARY_DIRS}
