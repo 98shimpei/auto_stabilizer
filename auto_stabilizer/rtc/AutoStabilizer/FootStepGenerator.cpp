@@ -569,26 +569,53 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     if(targetRegion.size() < 3){ //重なりがない　角運動量補償
       std::vector<cnoid::Vector3> p, q;
       double distance = mathutil::calcNearestPointOfTwoHull(tmpSteppableRegion, reachableCaptureRegionHull, p, q);
-      //TODO: p,qが線分のときのこと書く
-      std::cout << "hogeeeeeeee" << std::endl;
-      forDebug[32] = 1;
-      for (int i = 0; i < p.size(); i++) {
-        std::cout << "p";
-        std::cout << p[i].transpose() << std::endl;
-        std::cout << "q";
-        std::cout << q[i].transpose() << std::endl;
-      }
       tmpPos = mathutil::calcNearestPointOfHull(curPos, p);
       tmpShort = (mathutil::calcNearestPointOfHull(tmpPos, q) - tmpPos);
     } else {
       isIn = mathutil::isInsideHull(curPos, targetRegion);
       tmpPos = mathutil::calcNearestPointOfHull(curPos, targetRegion);
       tmpShort = cnoid::Vector3::Zero();
-      forDebug[32] = 0;
     }
 
     //modify landing time
+    for (int j = 32; j < 43; j++) {
+      forDebug[j] = -10.0;
+    }
     double tmpTime = footstepNodesList[0].remainTime;
+    cnoid::Vector3 a = tmpPos+tmpShort - actDCM;
+    a[2] = 0;
+    a = a / a.norm();
+    std::vector<cnoid::Vector3> line{actDCM + 1e+3*a, actDCM - 1e+3*a};
+    std::vector<cnoid::Vector3> genSafeSupportLegHull;
+    genSafeSupportLegHull.resize(this->safeLegHull[supportLeg].size());
+    for (int j=0; j<this->safeLegHull[supportLeg].size(); j++) {
+      genSafeSupportLegHull[j] = supportPoseHorizontal * this->safeLegHull[supportLeg][j];
+    }
+    std::vector<cnoid::Vector3> intersection = mathutil::calcIntersectConvexHull(genSafeSupportLegHull, line);
+    double cpMinTime = -1;
+    double cpMaxTime = -1;
+    for (int j = 0; j < intersection.size(); j++) {
+      forDebug[32+j*2+0] = intersection[j][0];
+      forDebug[32+j*2+1] = intersection[j][1];
+      double tmp = ((tmpPos+tmpShort)[1] - intersection[j][1]) / (actDCM[1] - intersection[j][1]);
+      if (tmp > 0) {
+        tmp = std::log(tmp) / gaitParam.omega;
+      } else {
+        tmp = maxTime; //infinity, maxTimeで打ち切る
+      }
+      if (cpMinTime < 0 || tmp < cpMinTime) cpMinTime = tmp;
+      if (cpMaxTime < 0 || cpMaxTime < tmp) cpMaxTime = tmp;
+    }
+    if (cpMinTime < 0 || cpMaxTime < 0) std::cerr << "invalid intersection" << std::endl;
+
+    double tmpMinTime = std::max(minTime, cpMinTime);
+    double tmpMaxTime = std::min(maxTime, cpMaxTime);
+
+    if (tmpMinTime <= tmpMaxTime) {
+      tmpTime = std::min(std::max(tmpMinTime, tmpTime), tmpMaxTime);
+    } else {//なにかおかしい
+      tmpTime = tmpMinTime;
+    }
 
     //update newPos
     if (tmpShort.head(2).norm() < newShort.head(2).norm() || (tmpShort.head(2).norm() == newShort.head(2).norm() && (curPos - tmpPos).head(2).norm() < (curPos - newPos).head(2).norm())) {

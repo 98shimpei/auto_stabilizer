@@ -663,9 +663,6 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
     ports.m_remainTime_.data[0] = gaitParam.footstepNodesList[0].remainTime;
     ports.m_remainTimeOut_.write();
 
-    if (gaitParam.forDebug[32]>0.5) {
-      std::cout << "tm: " << ports.m_qRef_.tm.sec << " " << ports.m_qRef_.tm.nsec << std::endl;
-    }
     ports.m_tmp_.tm = ports.m_qRef_.tm;
     ports.m_tmp_.data.length(gaitParam.forDebug.size());
     for (int i = 0; i < gaitParam.forDebug.size(); i++) {
