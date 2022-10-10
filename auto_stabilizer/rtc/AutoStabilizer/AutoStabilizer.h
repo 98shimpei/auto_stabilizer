@@ -26,6 +26,7 @@
 
 #include "AutoStabilizerService_impl.h"
 #include "hrpsys/idl/RobotHardwareService.hh"
+#include "auto_stabilizer_msgs/idl/AutoStabilizer.hh"
 #include "GaitParam.h"
 #include "RefToGenFrameConverter.h"
 #include "ActToGenFrameConverter.h"
@@ -99,6 +100,10 @@ protected:
     std::vector<RTC::TimedPose3D> m_refEEPose_; // Reference World frame. 要素数及び順番はgaitParam_.eeNameと同じ
     std::vector<std::unique_ptr<RTC::InPort<RTC::TimedPose3D> > > m_refEEPoseIn_;
     RTC::Time refEEPoseLastUpdateTime_; // m_refEEPoseIn_のどれかに最後にdataが届いたときの、m_qRef_.tmの時刻
+    auto_stabilizer_msgs::TimedSteppableRegion m_steppableRegion_;
+    RTC::InPort<auto_stabilizer_msgs::TimedSteppableRegion> m_steppableRegionIn_;
+    auto_stabilizer_msgs::TimedLandingPosition m_landingHeight_;
+    RTC::InPort<auto_stabilizer_msgs::TimedLandingPosition> m_landingHeightIn_;
 
     RTC::TimedDoubleSeq m_q_;
     RTC::OutPort<RTC::TimedDoubleSeq> m_qOut_;
@@ -108,6 +113,8 @@ protected:
     RTC::OutPort<RTC::TimedPose3D> m_genBasePoseOut_;
     RTC::TimedDoubleSeq m_genBaseTform_;  // Generate World frame
     RTC::OutPort<RTC::TimedDoubleSeq> m_genBaseTformOut_; // for HrpsysSeqStateROSBridge
+    auto_stabilizer_msgs::TimedLandingPosition m_landingTarget_;
+    RTC::OutPort<auto_stabilizer_msgs::TimedLandingPosition> m_landingTargetOut_;
 
     AutoStabilizerService_impl m_service0_;
     RTC::CorbaPort m_AutoStabilizerServicePort_;
@@ -247,7 +254,7 @@ protected:
   bool getProperty(const std::string& key, std::string& ret);
   static void copyEigenCoords2FootStep(const cnoid::Position& in_fs, OpenHRP::AutoStabilizerService::Footstep& out_fs);
 
-  static bool readInPortData(const double& dt, AutoStabilizer::Ports& ports, cnoid::BodyPtr refRobotRaw, cnoid::BodyPtr actRobotRaw, std::vector<cnoid::Vector6>& refEEWrenchOrigin, std::vector<cpp_filters::TwoPointInterpolatorSE3>& refEEPoseRaw);
+  static bool readInPortData(const double& dt, AutoStabilizer::Ports& ports, cnoid::BodyPtr refRobotRaw, cnoid::BodyPtr actRobotRaw, std::vector<cnoid::Vector6>& refEEWrenchOrigin, std::vector<cpp_filters::TwoPointInterpolatorSE3>& refEEPoseRaw, std::vector<std::vector<cnoid::Vector3> >& steppableRegion, std::vector<double>& steppableHeight, double relLandingHeight, cnoid::Vector3 relLandingNormal, const GaitParam& gaitParam);
   static bool execAutoStabilizer(const AutoStabilizer::ControlMode& mode, GaitParam& gaitParam, double dt, const FootStepGenerator& footStepGenerator, const LegCoordsGenerator& legCoordsGenerator, const RefToGenFrameConverter& refToGenFrameConverter, const ActToGenFrameConverter& actToGenFrameConverter, const ImpedanceController& impedanceController, const Stabilizer& stabilizer, const ExternalForceHandler& externalForceHandler, const FullbodyIKSolver& fullbodyIKSolver, const LegManualController& legManualController, const CmdVelGenerator& cmdVelGenerator);
   static bool writeOutPortData(AutoStabilizer::Ports& ports, const AutoStabilizer::ControlMode& mode, cpp_filters::TwoPointInterpolator<double>& idleToAbcTransitionInterpolator, double dt, const GaitParam& gaitParam);
 };

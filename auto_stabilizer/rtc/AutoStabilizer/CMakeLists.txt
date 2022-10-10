@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   cpp_filters
   #ik_constraint_joint_limit_table
   hrpsys_ros_bridge
+  auto_stabilizer_msgs
   joint_limit_table
   )
 find_package(choreonoid REQUIRED)

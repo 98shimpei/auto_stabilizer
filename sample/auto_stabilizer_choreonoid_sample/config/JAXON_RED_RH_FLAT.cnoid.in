@@ -60,8 +60,48 @@ items:
                 AutoConnect: false
                 InstanceName: JAXON_RED(Robot)0
                 bodyPeriodicRate: 0.002
+            -
+              id: 4
+              name: "DepthCameraPublisher"
+              plugin: ROSExt
+              class: DepthCameraPublisherItem
+              data:
+                cameraName: rs_l515_depth_optical_frame
+                imageTopicName: ""
+                cameraInfoTopicName: ""
+                depthImageTopicName: rs_l515/depth/image_rect_raw
+                depthCameraInfoTopicName: rs_l515/depth/camera_info
+                pointCloudTopicName: rs_l515/depth_registered/points
+                frameId: ""
+                minDistance: 0
+                publishColor: false
+                publishDepth: true
+                publishPointCloud: true
+            -
+              id: 5
+              name: "CameraPublisher"
+              plugin: ROSExt
+              class: CameraPublisherItem
+              data:
+                cameraName: rs_l515_color_optical_frame
+                imageTopicName: rs_l515/color/image_raw
+                cameraInfoTopicName: rs_l515/color/camera_info
+                frameId: ""
+            -
+              id: 6
+              name: "OdometryPublisher"
+              plugin: ROSExt
+              class: OdometryPublisherItem
+              data:
+                targetName: rs_t265
+                odometryTopicName: rs_t265/odom/sample
+                frameId: ""
+                childFrameId: rs_t265_link
+                poseCovariance: 0
+                twistCovariance: 0
+                publishRate: 100
         - 
-          id: 4
+          id: 7
           name: "floor"
           plugin: Body
           class: BodyItem
@@ -85,7 +125,7 @@ items:
             selfCollisionDetection: false
             isEditable: true
         - 
-          id: 5
+          id: 8
           name: "AISTSimulator"
           plugin: Body
           class: AISTSimulatorItem
@@ -114,67 +154,47 @@ items:
             2Dmode: false
           children: 
             - 
-              id: 6
+              id: 9
               name: "GLVisionSimulator"
               plugin: Body
               class: GLVisionSimulatorItem
-              data: 
+              data:
                 enabled: true
                 targetBodies: [ JAXON_RED ]
-                targetSensors: [ HEAD_LEFT_CAMERA ]
+                targetSensors: [ rs_l515_color_optical_frame ]
                 maxFrameRate: 1000
                 maxLatency: 1
                 recordVisionData: false
-                useThread: true
-                useThreadsForSensors: true
-                bestEffort: false
+                threadMode: Sensor
+                bestEffort: true
                 allSceneObjects: false
                 rangeSensorPrecisionRatio: 2
                 depthError: 0
                 enableHeadLight: true
                 enableAdditionalLights: true
-            - 
-              id: 7
+                antiAliasing: false
+            -
+              id: 10
               name: "GLVisionSimulator"
               plugin: Body
               class: GLVisionSimulatorItem
-              data: 
+              data:
                 enabled: true
                 targetBodies: [ JAXON_RED ]
-                targetSensors: [ HEAD_RIGHT_CAMERA ]
+                targetSensors: [ rs_l515_depth_optical_frame ]
                 maxFrameRate: 1000
                 maxLatency: 1
                 recordVisionData: false
-                useThread: true
-                useThreadsForSensors: true
-                bestEffort: false
+                threadMode: Sensor
+                bestEffort: true
                 allSceneObjects: false
                 rangeSensorPrecisionRatio: 2
                 depthError: 0
                 enableHeadLight: true
                 enableAdditionalLights: true
-            - 
-              id: 8
-              name: "GLVisionSimulator"
-              plugin: Body
-              class: GLVisionSimulatorItem
-              data: 
-                enabled: true
-                targetBodies: [ JAXON_RED ]
-                targetSensors: [ HEAD_RANGE ]
-                maxFrameRate: 1000
-                maxLatency: 1
-                recordVisionData: false
-                useThread: true
-                useThreadsForSensors: true
-                bestEffort: false
-                allSceneObjects: false
-                rangeSensorPrecisionRatio: 2
-                depthError: 0
-                enableHeadLight: true
-                enableAdditionalLights: true
+                antiAliasing: false
     -
-      id: 9
+      id: 11
       name: "ros_service_server.py"
       plugin: Python
       class: PythonScriptItem
@@ -201,8 +221,8 @@ views:
     class: ItemTreeView
     mounted: true
     state: 
-      selected: [ 9 ]
-      checked: [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ]
+      selected: [ 11 ]
+      checked: [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
       expanded: [ 1 ]
   - 
     id: 3
