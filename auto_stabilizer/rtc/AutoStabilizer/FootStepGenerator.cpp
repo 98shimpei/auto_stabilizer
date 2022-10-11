@@ -464,7 +464,6 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<std::pair<st
 }
 
 void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam, std::vector<double>& forDebug) const{
-  std::cout << "hoge0" << std::endl;
   // 現在片足支持期で、次が両足支持期であるときのみ、行う
   if(!(footstepNodesList.size() > 2 &&
        (footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG]) &&
@@ -488,7 +487,6 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   minTime = std::min(minTime, footstepNodesList[0].remainTime); // もともと下回っている場合には、その値を下回るようには着地時刻修正を行わない.
   double maxTime = std::max(this->overwritableMaxStepTime - gaitParam.elapsedTime, minTime); // 現index開始時からの経過時間がthis->overwritableStepMaxTimeを上回るようには着地時間修正を行わない.
   maxTime = std::max(maxTime, footstepNodesList[0].remainTime); // もともと上回っている場合には、その値を上回るようには着地時刻修正を行わない.
-  std::cout << "hoge1" << std::endl;
 
   /*
     capturable: ある時刻t(overwritableMinTime<=t<=overwritableMaxTime)が存在し、時刻tに着地すれば転倒しないような着地位置.
@@ -532,7 +530,6 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     steppableRegion = this->steppableRegion;
     steppableHeight = this->steppableHeight;
   }
-  std::cout << "hoge2" << std::endl;
 
   ///////////////////
   //std::vector<cnoid::Vector3> reg1;
@@ -565,7 +562,6 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   cnoid::Vector3 newShort = cnoid::Vector3(1e+10, 1e+10, 0);
   double newTime = 0;
   double newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
-  std::cout << "hoge3" << std::endl;
   for(int i=0;i<steppableRegion.size();i++){
     //calc target region
     std::vector<cnoid::Vector3> tmpSteppableRegion;
@@ -629,7 +625,6 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     } else {//なにかおかしい
       tmpTime = tmpMinTime;
     }
-    std::cout << "hoge4" << std::endl;
 
     //update newPos
     if (tmpShort.head(2).norm() < newShort.head(2).norm() || (tmpShort.head(2).norm() == newShort.head(2).norm() && (curPos - tmpPos).head(2).norm() < (curPos - newPos).head(2).norm())) {
@@ -638,10 +633,8 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
       newShort = tmpShort;
       newHeight = steppableHeight[i];
     }
-    std::cout << "hoge5" << std::endl;
     if(isIn) break;
   }
-  std::cout << "hoge6" << std::endl;
 
   if(newShort.head(2).norm() > 1e+5){
     std::cerr << "NO SR!!" << std::endl;
@@ -650,9 +643,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   }
 
   //landingHeightから受け取った値を用いて着地高さを変更
-  std::cout << "hoge7" << std::endl;
   if (relLandingHeight > -1e+10) {
-    std::cout << "hoge8" << std::endl;
     newHeight = relLandingHeight;
   }
 
@@ -660,14 +651,11 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   //displacement[2] = 0.0;
   this->transformFutureSteps(footstepNodesList, 0, displacement);
   footstepNodesList[0].remainTime = newTime;
-  std::cout << "hoge9" << std::endl;
 
   //landingHeightから受け取った値を用いて着地姿勢を変更
   if (relLandingHeight > -1e+10) {
-    std::cout << "hoge10" << std::endl;
     footstepNodesList[0].dstCoords[swingLeg].linear() = mathutil::orientCoordToAxis(gaitParam.dstCoordsOrg[swingLeg].linear(), relLandingNormal);
   }
-  std::cout << "hoge11" << std::endl;
 
 
   //std::vector<std::pair<std::vector<cnoid::Vector3>, double> > candidates; // first: generate frame. 着地領域(convex Hull). second: 着地時刻. サイズが0になることはない
