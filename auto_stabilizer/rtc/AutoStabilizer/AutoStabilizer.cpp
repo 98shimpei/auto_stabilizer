@@ -50,6 +50,7 @@ AutoStabilizer::Ports::Ports() :
   m_dstLandingPosOut_("dstLandingPosOut", m_dstLandingPos_),
   m_remainTimeOut_("remainTimeOut", m_remainTime_),
   m_tmpOut_("tmpOut", m_tmp_),
+  m_genCoordsOut_("genCoordsOut", m_genCoords_),
 
   m_AutoStabilizerServicePort_("AutoStabilizerService"),
 
@@ -91,6 +92,7 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
   this->addOutPort("dstLandingPosOut", this->ports_.m_dstLandingPosOut_);
   this->addOutPort("remainTimeOut", this->ports_.m_remainTimeOut_);
   this->addOutPort("tmpOut", this->ports_.m_tmpOut_);
+  this->addOutPort("genCoordsOut", this->ports_.m_genCoordsOut_);
   this->ports_.m_AutoStabilizerServicePort_.registerProvider("service0", "AutoStabilizerService", this->ports_.m_service0_);
   this->addPort(this->ports_.m_AutoStabilizerServicePort_);
   this->ports_.m_RobotHardwareServicePort_.registerConsumer("service0", "RobotHardwareService", this->ports_.m_robotHardwareService0_);
@@ -732,6 +734,16 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
       ports.m_tmp_.data[i] = gaitParam.forDebug[i];
     }
     ports.m_tmpOut_.write();
+    ports.m_genCoords_.tm = ports.m_qRef_.tm;
+    ports.m_genCoords_.data.length(12);
+    for (int i=0; i<3; i++) {
+      ports.m_genCoords_.data[0+i] = gaitParam.genCoords[RLEG].value().translation()[i];
+      ports.m_genCoords_.data[3+i] = gaitParam.genCoords[LLEG].value().translation()[i];
+      ports.m_genCoords_.data[6+i] = gaitParam.genCoords[RLEG].getGoal().translation()[i];
+      ports.m_genCoords_.data[9+i] = gaitParam.genCoords[LLEG].getGoal().translation()[i];
+    }
+    ports.m_genCoordsOut_.write();
+
     for(int i=0;i<gaitParam.eeName.size();i++){
       ports.m_actEEPose_[i].tm = ports.m_qRef_.tm;
       ports.m_actEEPose_[i].data.position.x = gaitParam.actEEPose[i].translation()[0];
