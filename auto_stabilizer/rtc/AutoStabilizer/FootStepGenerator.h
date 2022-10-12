@@ -37,6 +37,9 @@ public:
 
 protected:
   mutable std::vector<cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6> > actLegWrenchFilter = std::vector<cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6> >(2, cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6>(50.0, cnoid::Vector6::Zero()));  // 要素数2. rleg: 0. lleg: 1. generate frame. endeffector origin. cutoff 50hz. contactDecisionThresholdを用いた接触判定に用いる
+  mutable cnoid::Vector3 sumDiffFootstep = cnoid::Vector3::Zero();
+  mutable cnoid::Vector3 destFootstepOffset = cnoid::Vector3::Zero();
+  mutable std::vector<cnoid::Vector3> prevDiffFootstep = std::vector<cnoid::Vector3>(6, cnoid::Vector3::Zero());
 public:
   // startAutoBalancer時に呼ばれる
   void reset(){

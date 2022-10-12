@@ -209,6 +209,14 @@ bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const 
 
   if(footstepNodesList[0].remainTime <= 0.0) {
     relLandingHeight = -1e+15;
+    destFootstepOffset = cnoid::Vector3::Zero();
+    for(int j=1; j<prevDiffFootstep.size(); j++) {
+      prevDiffFootstep[j-1] = prevDiffFootstep[j];
+      destFootstepOffset -= prevDiffFootstep[j-1];
+    }
+    prevDiffFootstep[prevDiffFootstep.size()-1] = sumDiffFootstep;
+    destFootstepOffset-=sumDiffFootstep;
+    sumDiffFootstep = cnoid::Vector3::Zero();
     if(footstepNodesList.size() > 1){ // 次のfootstepNodesListのindexに移る.
       if(this->isModifyFootSteps && this->isStableGoStopMode && useActState){
         // footstepNodesList[0]で着地位置修正を行っていたら、footstepNodesListがemergencyStepNumのサイズになるまで歩くnodeが末尾に入る.
@@ -557,7 +565,8 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   //}
   //////////////////
 
-  cnoid::Vector3 curPos = footstepNodesList[0].dstCoords[swingLeg].translation();
+  //cnoid::Vector3 destPos = footstepNodesList[0].dstCoords[swingLeg].translation() + destFootstepOffset - sumDiffFootstep;
+  cnoid::Vector3 destPos = gaitParam.dstCoordsOrg[swingLeg].translation() + destFootstepOffset + sumDiffFootstep;
   cnoid::Vector3 newPos = cnoid::Vector3(1e+10, 1e+10, 0);
   cnoid::Vector3 newShort = cnoid::Vector3(1e+10, 1e+10, 0);
   double newTime = 0;
@@ -578,11 +587,11 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     if(targetRegion.size() < 3){ //重なりがない　角運動量補償
       std::vector<cnoid::Vector3> p, q;
       double distance = mathutil::calcNearestPointOfTwoHull(tmpSteppableRegion, reachableCaptureRegionHull, p, q);
-      tmpPos = mathutil::calcNearestPointOfHull(curPos, p);
+      tmpPos = mathutil::calcNearestPointOfHull(destPos, p);
       tmpShort = (mathutil::calcNearestPointOfHull(tmpPos, q) - tmpPos);
     } else {
-      isIn = mathutil::isInsideHull(curPos, targetRegion);
-      tmpPos = mathutil::calcNearestPointOfHull(curPos, targetRegion);
+      isIn = mathutil::isInsideHull(destPos, targetRegion);
+      tmpPos = mathutil::calcNearestPointOfHull(destPos, targetRegion);
       tmpShort = cnoid::Vector3::Zero();
     }
 
@@ -627,7 +636,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     }
 
     //update newPos
-    if (tmpShort.head(2).norm() < newShort.head(2).norm() || (tmpShort.head(2).norm() == newShort.head(2).norm() && (curPos - tmpPos).head(2).norm() < (curPos - newPos).head(2).norm())) {
+    if (tmpShort.head(2).norm() < newShort.head(2).norm() || (tmpShort.head(2).norm() == newShort.head(2).norm() && (destPos - tmpPos).head(2).norm() < (destPos - newPos).head(2).norm())) {
       newTime = tmpTime;
       newPos = tmpPos;
       newShort = tmpShort;
@@ -638,17 +647,18 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
 
   if(newShort.head(2).norm() > 1e+5){
     std::cerr << "NO SR!!" << std::endl;
-    newPos = curPos;
+    newPos = destPos;
     newShort = cnoid::Vector3::Zero();
   }
 
   //landingHeightから受け取った値を用いて着地高さを変更
-  if (relLandingHeight > -1e+10) {
-    newHeight = relLandingHeight;
-  }
+  //if (relLandingHeight > -1e+10) {
+  //  newHeight = relLandingHeight;
+  //}
 
   cnoid::Vector3 displacement = cnoid::Vector3(newPos[0], newPos[1], newHeight) - footstepNodesList[0].dstCoords[swingLeg].translation();
-  //displacement[2] = 0.0;
+  sumDiffFootstep = displacement - destFootstepOffset;
+  displacement[2] = 0.0;
   this->transformFutureSteps(footstepNodesList, 0, displacement);
   footstepNodesList[0].remainTime = newTime;
 
@@ -656,6 +666,8 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   if (relLandingHeight > -1e+10) {
     footstepNodesList[0].dstCoords[swingLeg].linear() = mathutil::orientCoordToAxis(gaitParam.dstCoordsOrg[swingLeg].linear(), relLandingNormal);
   }
+
+  std::cout << destFootstepOffset.head(2).transpose() << std::endl;
 
 
   //std::vector<std::pair<std::vector<cnoid::Vector3>, double> > candidates; // first: generate frame. 着地領域(convex Hull). second: 着地時刻. サイズが0になることはない
