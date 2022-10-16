@@ -51,6 +51,10 @@ AutoStabilizer::Ports::Ports() :
   m_remainTimeOut_("remainTimeOut", m_remainTime_),
   m_tmpOut_("tmpOut", m_tmp_),
   m_genCoordsOut_("genCoordsOut", m_genCoords_),
+  m_captureRegionOut_("captureRegionOut", m_captureRegion_),
+  m_steppableRegionLogOut_("steppableRegionLogOut", m_steppableRegionLog_),
+  m_steppableRegionNumLogOut_("steppableRegionNumLogOut", m_steppableRegionNumLog_),
+  m_strideLimitationHullOut_("strideLimitationHullOut", m_strideLimitationHull_),
 
   m_AutoStabilizerServicePort_("AutoStabilizerService"),
 
@@ -93,6 +97,10 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
   this->addOutPort("remainTimeOut", this->ports_.m_remainTimeOut_);
   this->addOutPort("tmpOut", this->ports_.m_tmpOut_);
   this->addOutPort("genCoordsOut", this->ports_.m_genCoordsOut_);
+  this->addOutPort("captureRegionOut", this->ports_.m_captureRegionOut_);
+  this->addOutPort("steppableRegionLogOut", this->ports_.m_steppableRegionLogOut_);
+  this->addOutPort("steppableRegionNumLogOut", this->ports_.m_steppableRegionNumLogOut_);
+  this->addOutPort("strideLimitationHullOut", this->ports_.m_strideLimitationHullOut_);
   this->ports_.m_AutoStabilizerServicePort_.registerProvider("service0", "AutoStabilizerService", this->ports_.m_service0_);
   this->addPort(this->ports_.m_AutoStabilizerServicePort_);
   this->ports_.m_RobotHardwareServicePort_.registerConsumer("service0", "RobotHardwareService", this->ports_.m_robotHardwareService0_);
@@ -319,7 +327,7 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
 }
 
 // static function
-bool AutoStabilizer::readInPortData(const double& dt, AutoStabilizer::Ports& ports, cnoid::BodyPtr refRobotRaw, cnoid::BodyPtr actRobotRaw, std::vector<cnoid::Vector6>& refEEWrenchOrigin, std::vector<cpp_filters::TwoPointInterpolatorSE3>& refEEPoseRaw, std::vector<std::vector<cnoid::Vector3> >& steppableRegion, std::vector<double>& steppableHeight, double relLandingHeight, cnoid::Vector3 relLandingNormal, const GaitParam& gaitParam){
+bool AutoStabilizer::readInPortData(const double& dt, AutoStabilizer::Ports& ports, cnoid::BodyPtr refRobotRaw, cnoid::BodyPtr actRobotRaw, std::vector<cnoid::Vector6>& refEEWrenchOrigin, std::vector<cpp_filters::TwoPointInterpolatorSE3>& refEEPoseRaw, std::vector<std::vector<cnoid::Vector3> >& steppableRegion, std::vector<double>& steppableHeight, int& steppableRegionReceiveCounter, double& relLandingHeight, cnoid::Vector3& relLandingNormal, const GaitParam& gaitParam){
   bool qRef_updated = false;
   if(ports.m_qRefIn_.isNew()){
     ports.m_qRefIn_.read();
@@ -428,8 +436,8 @@ bool AutoStabilizer::readInPortData(const double& dt, AutoStabilizer::Ports& por
   if(ports.m_steppableRegionIn_.isNew()){
     ports.m_steppableRegionIn_.read();
     //steppableRegionを送るのは片足支持期のみ
-    if ((gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && (ports.m_steppableRegion_.data.l_r == 0)) ||
-        (gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && (ports.m_steppableRegion_.data.l_r == 1))){//現在支持脚と計算時支持脚が同じ
+    if ((gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && (ports.m_steppableRegion_.data.l_r == 0)) ||
+        (gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && (ports.m_steppableRegion_.data.l_r == 1))){//現在支持脚と計算時支持脚が同じ
       int swingLeg = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? LLEG : RLEG;
       int supportLeg = (swingLeg == RLEG) ? LLEG : RLEG;
       cnoid::Position supportPose = gaitParam.genCoords[supportLeg].value(); // TODO. 支持脚のgenCoordsとdstCoordsが異なることは想定していない
@@ -446,20 +454,22 @@ bool AutoStabilizer::readInPortData(const double& dt, AutoStabilizer::Ports& por
         }
         steppableHeight[i] = heightSum / steppableRegion[i].size();
       }
+      steppableRegionReceiveCounter = 5;
     }
   }
 
   if(ports.m_landingHeightIn_.isNew()) {
-    std::cout << "landingHeightIn" << std::endl;
     ports.m_landingHeightIn_.read();
     cnoid::Position supportPoseHorizontal;
-    if(ports.m_landingHeight_.data.l_r == 0 && gaitParam.footstepNodesList[0].isSupportPhase[RLEG]) {
+    if(ports.m_landingHeight_.data.l_r == 0 && gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG]) {
       supportPoseHorizontal = mathutil::orientCoordToAxis(gaitParam.genCoords[RLEG].value(), cnoid::Vector3::UnitZ());
-    }else if(ports.m_landingHeight_.data.l_r == 1 && gaitParam.footstepNodesList[0].isSupportPhase[LLEG]) {
+      relLandingHeight = supportPoseHorizontal.translation()[2] + ports.m_landingHeight_.data.z;
+      relLandingNormal = supportPoseHorizontal.linear() * cnoid::Vector3(ports.m_landingHeight_.data.nx, ports.m_landingHeight_.data.ny, ports.m_landingHeight_.data.nz);
+    }else if(ports.m_landingHeight_.data.l_r == 1 && gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[RLEG]) {
       supportPoseHorizontal = mathutil::orientCoordToAxis(gaitParam.genCoords[LLEG].value(), cnoid::Vector3::UnitZ());
+      relLandingHeight = supportPoseHorizontal.translation()[2] + ports.m_landingHeight_.data.z;
+      relLandingNormal = supportPoseHorizontal.linear() * cnoid::Vector3(ports.m_landingHeight_.data.nx, ports.m_landingHeight_.data.ny, ports.m_landingHeight_.data.nz);
     }
-    relLandingHeight = supportPoseHorizontal.translation()[2] + ports.m_landingHeight_.data.z;
-    relLandingNormal = supportPoseHorizontal.linear() * cnoid::Vector3(ports.m_landingHeight_.data.nx, ports.m_landingHeight_.data.ny, ports.m_landingHeight_.data.nz);
   }
 
   return qRef_updated;
@@ -539,7 +549,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
 }
 
 // static function
-bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoStabilizer::ControlMode& mode, cpp_filters::TwoPointInterpolator<double>& idleToAbcTransitionInterpolator, double dt, const GaitParam& gaitParam){
+bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoStabilizer::ControlMode& mode, cpp_filters::TwoPointInterpolator<double>& idleToAbcTransitionInterpolator, double dt, const GaitParam& gaitParam, const FootStepGenerator& footStepGenerator){
   if(mode.isSyncToABC()){
     if(mode.isSyncToABCInit()){
       idleToAbcTransitionInterpolator.reset(0.0);
@@ -743,6 +753,37 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
       ports.m_genCoords_.data[9+i] = gaitParam.genCoords[LLEG].getGoal().translation()[i];
     }
     ports.m_genCoordsOut_.write();
+    ports.m_captureRegion_.tm = ports.m_qRef_.tm;
+    ports.m_captureRegion_.data.length(footStepGenerator.reachableCaptureRegionHull.size()*2);
+    for (int i=0; i<footStepGenerator.reachableCaptureRegionHull.size(); i++) {
+      ports.m_captureRegion_.data[i*2+0] = footStepGenerator.reachableCaptureRegionHull[i][0];
+      ports.m_captureRegion_.data[i*2+1] = footStepGenerator.reachableCaptureRegionHull[i][1];
+    }
+    ports.m_captureRegionOut_.write();
+    ports.m_steppableRegionLog_.tm = ports.m_qRef_.tm;
+    ports.m_steppableRegionNumLog_.tm = ports.m_qRef_.tm;
+    int sum = 0;
+    for (int i=0; i<footStepGenerator.steppableRegion.size(); i++) sum+=footStepGenerator.steppableRegion[i].size();
+    ports.m_steppableRegionLog_.data.length(sum*2);
+    ports.m_steppableRegionNumLog_.data.length(footStepGenerator.steppableRegion.size());
+    int index=0;
+    for (int i=0; i<footStepGenerator.steppableRegion.size(); i++) {
+      for (int j=0; j<footStepGenerator.steppableRegion[i].size(); j++) {
+        ports.m_steppableRegionLog_.data[index+0] = footStepGenerator.steppableRegion[i][j][0];
+        ports.m_steppableRegionLog_.data[index+1] = footStepGenerator.steppableRegion[i][j][1];
+        index+=2;
+      }
+      ports.m_steppableRegionNumLog_.data[i] = footStepGenerator.steppableRegion[i].size();
+    }
+    ports.m_steppableRegionLogOut_.write();
+    ports.m_steppableRegionNumLogOut_.write();
+    ports.m_strideLimitationHull_.tm = ports.m_qRef_.tm;
+    ports.m_strideLimitationHull_.data.length(footStepGenerator.strideLimitationHull.size()*2);
+    for (int i=0; i<footStepGenerator.strideLimitationHull.size(); i++) {
+      ports.m_strideLimitationHull_.data[i*2+0] = footStepGenerator.strideLimitationHull[i][0];
+      ports.m_strideLimitationHull_.data[i*2+1] = footStepGenerator.strideLimitationHull[i][1];
+    }
+    ports.m_strideLimitationHullOut_.write();
 
     for(int i=0;i<gaitParam.eeName.size();i++){
       ports.m_actEEPose_[i].tm = ports.m_qRef_.tm;
@@ -778,7 +819,7 @@ RTC::ReturnCode_t AutoStabilizer::onExecute(RTC::UniqueId ec_id){
   std::string instance_name = std::string(this->m_profile.instance_name);
   this->loop_++;
 
-  if(!AutoStabilizer::readInPortData(this->dt_, this->ports_, this->gaitParam_.refRobotRaw, this->gaitParam_.actRobotRaw, this->gaitParam_.refEEWrenchOrigin, this->gaitParam_.refEEPoseRaw, this->footStepGenerator_.steppableRegion, this->footStepGenerator_.steppableHeight, this->footStepGenerator_.relLandingHeight, this->footStepGenerator_.relLandingNormal, this->gaitParam_)) return RTC::RTC_OK;  // qRef が届かなければ何もしない
+  if(!AutoStabilizer::readInPortData(this->dt_, this->ports_, this->gaitParam_.refRobotRaw, this->gaitParam_.actRobotRaw, this->gaitParam_.refEEWrenchOrigin, this->gaitParam_.refEEPoseRaw, this->footStepGenerator_.steppableRegion, this->footStepGenerator_.steppableHeight, this->footStepGenerator_.steppableRegionReceiveCounter, this->footStepGenerator_.relLandingHeight, this->footStepGenerator_.relLandingNormal, this->gaitParam_)) return RTC::RTC_OK;  // qRef が届かなければ何もしない
 
   this->mode_.update(this->dt_);
   this->gaitParam_.update(this->dt_);
@@ -796,7 +837,7 @@ RTC::ReturnCode_t AutoStabilizer::onExecute(RTC::UniqueId ec_id){
     AutoStabilizer::execAutoStabilizer(this->mode_, this->gaitParam_, this->dt_, this->footStepGenerator_, this->legCoordsGenerator_, this->refToGenFrameConverter_, this->actToGenFrameConverter_, this->impedanceController_, this->stabilizer_,this->externalForceHandler_, this->fullbodyIKSolver_, this->legManualController_, this->cmdVelGenerator_);
   }
 
-  AutoStabilizer::writeOutPortData(this->ports_, this->mode_, this->idleToAbcTransitionInterpolator_, this->dt_, this->gaitParam_);
+  AutoStabilizer::writeOutPortData(this->ports_, this->mode_, this->idleToAbcTransitionInterpolator_, this->dt_, this->gaitParam_, this->footStepGenerator_);
 
   return RTC::RTC_OK;
 }

@@ -209,15 +209,21 @@ bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const 
 
   if(footstepNodesList[0].remainTime <= 0.0) {
     relLandingHeight = -1e+15;
-    destFootstepOffset = cnoid::Vector3::Zero();
-    for(int j=1; j<prevDiffFootstep.size(); j++) {
-      prevDiffFootstep[j-1] = prevDiffFootstep[j];
-      destFootstepOffset -= prevDiffFootstep[j-1];
-    }
-    prevDiffFootstep[prevDiffFootstep.size()-1] = sumDiffFootstep;
-    destFootstepOffset-=sumDiffFootstep;
-    sumDiffFootstep = cnoid::Vector3::Zero();
     if(footstepNodesList.size() > 1){ // 次のfootstepNodesListのindexに移る.
+      if (steppableRegionReceiveCounter > 0) {
+        steppableRegionReceiveCounter--;
+      } else {
+        //TODO 現在位置＋にする
+        steppableRegion = std::vector<std::vector<cnoid::Vector3> >();
+        steppableHeight = std::vector<double>();
+        std::vector<cnoid::Vector3> tmps;
+        tmps.emplace_back(cnoid::Vector3(10, 10, 0));
+        tmps.emplace_back(cnoid::Vector3(-10, 10, 0));
+        tmps.emplace_back(cnoid::Vector3(-10, -10, 0));
+        tmps.emplace_back(cnoid::Vector3(10, -10, 0));
+        steppableRegion.emplace_back(tmps);
+        steppableHeight.emplace_back(0.0);
+      }
       if(this->isModifyFootSteps && this->isStableGoStopMode && useActState){
         // footstepNodesList[0]で着地位置修正を行っていたら、footstepNodesListがemergencyStepNumのサイズになるまで歩くnodeが末尾に入る.
         this->checkStableGoStop(footstepNodesList, gaitParam);
@@ -287,12 +293,14 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
       cnoid::Position origin = mathutil::orientCoordToAxis(footstepNodesList[i-1].dstCoords[RLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のRLEGの位置を基準にずらす
       cnoid::Position offsetedPos = mathutil::orientCoordToAxis(gaitParam.genCoords[RLEG].value() * footstepNodesList[0].dstCoords[RLEG].inverse() * footstepNodesList[i-1].dstCoords[RLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のRLEGはこの位置にずれている
       cnoid::Position transform = offsetedPos * origin.inverse(); // generate frame
+      transform.translation() -= destFootstepOffset;
       this->transformFutureSteps(footstepNodesList, i, transform); // footstepNodesList[1:]で一回でも遊脚になった以降の脚の、位置とYawをずらす
       break;
     }else if(footstepNodesList[i].isSupportPhase[LLEG] && !footstepNodesList[i].isSupportPhase[RLEG]){ // RLEGが次に最初に遊脚になる
       cnoid::Position origin = mathutil::orientCoordToAxis(footstepNodesList[i-1].dstCoords[LLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のLLEGの位置を基準にずらす
       cnoid::Position offsetedPos = mathutil::orientCoordToAxis(gaitParam.genCoords[LLEG].value() * footstepNodesList[0].dstCoords[LLEG].inverse() * footstepNodesList[i-1].dstCoords[LLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のLLEGはこの位置にずれている
       cnoid::Position transform = offsetedPos * origin.inverse(); // generate frame
+      transform.translation() -= destFootstepOffset;
       this->transformFutureSteps(footstepNodesList, i, transform); // footstepNodesList[1:]で一回でも遊脚になった以降の脚の、位置とYawをずらす
       break;
     }else if(!footstepNodesList[i].isSupportPhase[LLEG] && !footstepNodesList[i].isSupportPhase[RLEG]){ // RLEGとLLEG同時に次に最初に遊脚になる
@@ -495,6 +503,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   minTime = std::min(minTime, footstepNodesList[0].remainTime); // もともと下回っている場合には、その値を下回るようには着地時刻修正を行わない.
   double maxTime = std::max(this->overwritableMaxStepTime - gaitParam.elapsedTime, minTime); // 現index開始時からの経過時間がthis->overwritableStepMaxTimeを上回るようには着地時間修正を行わない.
   maxTime = std::max(maxTime, footstepNodesList[0].remainTime); // もともと上回っている場合には、その値を上回るようには着地時刻修正を行わない.
+  maxTime += footstepNodesList[1].remainTime;
 
   /*
     capturable: ある時刻t(overwritableMinTime<=t<=overwritableMaxTime)が存在し、時刻tに着地すれば転倒しないような着地位置.
@@ -513,31 +522,30 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     5. もとの着地時刻(remainTimeOrg): 達成不可の場合は、可能な限り近い時刻
    */
 
-  std::vector<cnoid::Vector3> strideLimitationHull; // generate frame. overwritableStrideLimitationHullの範囲内の着地位置(自己干渉・IKの考慮が含まれる). Z成分には0を入れる
+  //std::vector<cnoid::Vector3> strideLimitationHull; // generate frame. overwritableStrideLimitationHullの範囲内の着地位置(自己干渉・IKの考慮が含まれる). Z成分には0を入れる
+  strideLimitationHull = std::vector<cnoid::Vector3>();
   for(int i=0;i<this->overwritableStrideLimitationHull[swingLeg].size();i++){
     cnoid::Vector3 p = supportPoseHorizontal * this->overwritableStrideLimitationHull[swingLeg][i];
     strideLimitationHull.emplace_back(p[0],p[1],0.0);
-    forDebug[20+i*2+0] = p[0];
-    forDebug[20+i*2+1] = p[1];
   }
 
-  std::vector<cnoid::Vector3> reachableCaptureRegionHull = std::vector<cnoid::Vector3>(); // generate frame. 今の脚の位置からの距離が時刻tに着地することができる範囲. Z成分には0を入れる
+  reachableCaptureRegionHull = std::vector<cnoid::Vector3>(); // generate frame. 今の脚の位置からの距離が時刻tに着地することができる範囲. Z成分には0を入れる
   this->calcReachableCaptureRegion(reachableCaptureRegionHull, actDCM, footstepNodesList[0], gaitParam.genCoords, gaitParam.omega, minTime, maxTime, forDebug);
 
-  std::vector< std::vector<cnoid::Vector3> > steppableRegion; // generate frame. 今の脚の位置からの距離が時刻tに着地することができる範囲. Z成分には0を入れる
-  std::vector<double>steppableHeight;
-  if (this->steppableRegion.size() == 0) {
-    std::vector<cnoid::Vector3> tmps;
-    tmps.emplace_back(cnoid::Vector3(10, 10, 0));
-    tmps.emplace_back(cnoid::Vector3(-10, 10, 0));
-    tmps.emplace_back(cnoid::Vector3(-10, -10, 0));
-    tmps.emplace_back(cnoid::Vector3(10, -10, 0));
-    steppableRegion.emplace_back(tmps);
-    steppableHeight.emplace_back(0.0);
-  } else {
-    steppableRegion = this->steppableRegion;
-    steppableHeight = this->steppableHeight;
-  }
+  //std::vector< std::vector<cnoid::Vector3> > steppableRegion; // generate frame. 今の脚の位置からの距離が時刻tに着地することができる範囲. Z成分には0を入れる
+  //std::vector<double>steppableHeight;
+  //if (this->steppableRegion.size() == 0) {
+  //  std::vector<cnoid::Vector3> tmps;
+  //  tmps.emplace_back(cnoid::Vector3(10, 10, 0));
+  //  tmps.emplace_back(cnoid::Vector3(-10, 10, 0));
+  //  tmps.emplace_back(cnoid::Vector3(-10, -10, 0));
+  //  tmps.emplace_back(cnoid::Vector3(10, -10, 0));
+  //  steppableRegion.emplace_back(tmps);
+  //  steppableHeight.emplace_back(0.0);
+  //} else {
+  //  steppableRegion = this->steppableRegion;
+  //  steppableHeight = this->steppableHeight;
+  //}
 
   ///////////////////
   //std::vector<cnoid::Vector3> reg1;
@@ -565,8 +573,10 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   //}
   //////////////////
 
-  //cnoid::Vector3 destPos = footstepNodesList[0].dstCoords[swingLeg].translation() + destFootstepOffset - sumDiffFootstep;
-  cnoid::Vector3 destPos = gaitParam.dstCoordsOrg[swingLeg].translation() + destFootstepOffset + sumDiffFootstep;
+
+  cnoid::Vector3 destPos = footstepNodesList[0].dstCoords[swingLeg].translation();
+  forDebug[16] = destPos[0];
+  forDebug[17] = destPos[1];
   cnoid::Vector3 newPos = cnoid::Vector3(1e+10, 1e+10, 0);
   cnoid::Vector3 newShort = cnoid::Vector3(1e+10, 1e+10, 0);
   double newTime = 0;
@@ -596,7 +606,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     }
 
     //modify landing time
-    for (int j = 32; j < 43; j++) {
+    for (int j = 8; j < 16; j++) {
       forDebug[j] = -10.0;
     }
     double tmpTime = footstepNodesList[0].remainTime;
@@ -612,9 +622,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     std::vector<cnoid::Vector3> intersection = mathutil::calcIntersectConvexHull(genSafeSupportLegHull, line);
     double cpMinTime = -1;
     double cpMaxTime = -1;
-    for (int j = 0; j < intersection.size(); j++) {
-      forDebug[32+j*2+0] = intersection[j][0];
-      forDebug[32+j*2+1] = intersection[j][1];
+    for (int j = 0; j <intersection.size(); j++) {
       double tmp = ((tmpPos+tmpShort)[1] - intersection[j][1]) / (actDCM[1] - intersection[j][1]);
       if (tmp > 0) {
         tmp = std::log(tmp) / gaitParam.omega;
@@ -637,10 +645,15 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
 
     //update newPos
     if (tmpShort.head(2).norm() < newShort.head(2).norm() || (tmpShort.head(2).norm() == newShort.head(2).norm() && (destPos - tmpPos).head(2).norm() < (destPos - newPos).head(2).norm())) {
+      for (int j = 0; j < std::min(int(intersection.size()), 4); j++){
+        forDebug[8+j*2+0] = intersection[j][0];
+        forDebug[8+j*2+1] = intersection[j][1];
+      }
       newTime = tmpTime;
       newPos = tmpPos;
       newShort = tmpShort;
-      newHeight = steppableHeight[i];
+      //newHeight = steppableHeight[i];
+      newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
     }
     if(isIn) break;
   }
@@ -652,23 +665,23 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   }
 
   //landingHeightから受け取った値を用いて着地高さを変更
-  //if (relLandingHeight > -1e+10) {
-  //  newHeight = relLandingHeight;
-  //}
+  if (relLandingHeight > -1e+10) {
+    newHeight = relLandingHeight;
+  }
 
   cnoid::Vector3 displacement = cnoid::Vector3(newPos[0], newPos[1], newHeight) - footstepNodesList[0].dstCoords[swingLeg].translation();
-  sumDiffFootstep = displacement - destFootstepOffset;
-  displacement[2] = 0.0;
+  destFootstepOffset = cnoid::Vector3(newPos[0], newPos[1], 0) - gaitParam.dstCoordsOrg[swingLeg].translation();
+  destFootstepOffset[2] = 0;
+  //displacement[2] = 0.0;
   this->transformFutureSteps(footstepNodesList, 0, displacement);
   footstepNodesList[0].remainTime = newTime;
 
   //landingHeightから受け取った値を用いて着地姿勢を変更
   if (relLandingHeight > -1e+10) {
-    footstepNodesList[0].dstCoords[swingLeg].linear() = mathutil::orientCoordToAxis(gaitParam.dstCoordsOrg[swingLeg].linear(), relLandingNormal);
+    for(int i=0; i<footstepNodesList.size(); i++) {
+      footstepNodesList[i].dstCoords[swingLeg].linear() = mathutil::orientCoordToAxis(gaitParam.dstCoordsOrg[swingLeg].linear(), relLandingNormal);
+    }
   }
-
-  std::cout << destFootstepOffset.head(2).transpose() << std::endl;
-
 
   //std::vector<std::pair<std::vector<cnoid::Vector3>, double> > candidates; // first: generate frame. 着地領域(convex Hull). second: 着地時刻. サイズが0になることはない
 
@@ -856,23 +869,15 @@ void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
   genSafeSupportLegHull.resize(this->safeLegHull[supportLeg].size());
   for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
     genSafeSupportLegHull[i] = supportPoseHorizontal * this->safeLegHull[supportLeg][i];
-    forDebug[12+i*2+0] = genSafeSupportLegHull[i][0];
-    forDebug[12+i*2+1] = genSafeSupportLegHull[i][1];
-    //forDebug[12+i*2+0] = safeLegHull[i][0];
-    //forDebug[12+i*2+1] = safeLegHull[i][1];
+    forDebug[i*2+0] = genSafeSupportLegHull[i][0];
+    forDebug[i*2+1] = genSafeSupportLegHull[i][1];
   }
 
   if (mathutil::isInsideHull(actDCM, genSafeSupportLegHull)) {
     reachableCaptureRegionHull.resize(genSafeSupportLegHull.size());
     for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
       reachableCaptureRegionHull[i] = std::exp(omega * maxTime) * (actDCM - genSafeSupportLegHull[i]) + genSafeSupportLegHull[i];
-      forDebug[i*2+0] = reachableCaptureRegionHull[i][0];
-      forDebug[i*2+1] = reachableCaptureRegionHull[i][1];
     }
-    forDebug[8]  = 0;
-    forDebug[9] = 0;
-    forDebug[10] = 0;
-    forDebug[11] = 0;
   } else {
     std::vector<cv::Point2f> cpList;
     for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
@@ -888,8 +893,6 @@ void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     for (int i=0; i<hull.size(); i++) {
       reachableCaptureRegionHull[i] = cnoid::Vector3(hull[i].x, hull[i].y, 0);
       if (i<6) {
-        forDebug[i*2+0] = reachableCaptureRegionHull[i][0];
-        forDebug[i*2+1] = reachableCaptureRegionHull[i][1];
       } else {
         std::cout << "6yorioooooooooooooooooooooooooooooooi" << std::endl;
       }
