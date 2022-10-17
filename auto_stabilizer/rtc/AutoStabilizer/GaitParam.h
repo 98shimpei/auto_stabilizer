@@ -130,7 +130,7 @@ public:
     maxTorque.resize(robot->numJoints(), std::numeric_limits<double>::max());
     jointLimitTables.resize(robot->numJoints());
     jointControllable.resize(robot->numJoints(), true);
-    forDebug.resize(18, 0.0);
+    forDebug.resize(22, 0.0);
     refRobotRaw = robot->clone();
     refRobotRaw->calcForwardKinematics(); refRobotRaw->calcCenterOfMass();
     actRobotRaw = robot->clone();

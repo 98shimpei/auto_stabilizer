@@ -437,7 +437,7 @@ bool AutoStabilizer::readInPortData(const double& dt, AutoStabilizer::Ports& por
     ports.m_steppableRegionIn_.read();
     //steppableRegionを送るのは片足支持期のみ
     if ((gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && (ports.m_steppableRegion_.data.l_r == 0)) ||
-        (gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && (ports.m_steppableRegion_.data.l_r == 1))){//現在支持脚と計算時支持脚が同じ
+        (gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && (ports.m_steppableRegion_.data.l_r == 1))){//現在支持脚と計算時支持脚が同じ
       int swingLeg = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? LLEG : RLEG;
       int supportLeg = (swingLeg == RLEG) ? LLEG : RLEG;
       cnoid::Position supportPose = gaitParam.genCoords[supportLeg].value(); // TODO. 支持脚のgenCoordsとdstCoordsが異なることは想定していない

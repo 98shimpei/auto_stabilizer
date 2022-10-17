@@ -101,6 +101,7 @@ while True:
     cv2.circle(img, reshape_pos(landingdata[i][1:3]), 10, (255, 0, 0), -1)
     cv2.circle(img, reshape_pos(landingdata[i][4:6]), 10, (255, 0, 0), -1)
     cv2.circle(img, reshape_pos(tmpdata[i][17:19]), 5, (255, 0, 255), -1)
+    cv2.line(img, reshape_pos(tmpdata[i][19:21]), reshape_pos(tmpdata[i][21:23]), (255, 100, 100), 3)
     for j in range(zmplimit.shape[0]):
         cv2.circle(img, (zmplimit[j][0], zmplimit[j][1]), 5, (255, 0, 255), -1)
 
@@ -110,7 +111,7 @@ while True:
         cv2.circle(img, (10, 10), 5, (0, 0, 255), -1)
     cv2.imshow('img', img)
     cv2.setMouseCallback("img", mousePoints)
-    key = cv2.waitKey(10)
+    key = cv2.waitKey(1)
     if key == -1:
         if mode == "play":
             i += 1
@@ -141,6 +142,11 @@ while True:
         i = max(0, min(tmpdata.shape[0]-1, i))
     elif key == 32:
         mode = "play"
+    elif key == 13:
+        print(tmpdata[i][0])
+    elif key == 27:
+        break
     #if key != -1:
-    #    print(tmpdata[i][0])
+    #    print(key)
+    #    #print(tmpdata[i][0])
 
