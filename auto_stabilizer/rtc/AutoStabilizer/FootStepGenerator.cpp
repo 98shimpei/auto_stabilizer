@@ -536,6 +536,8 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   genSafeSupportLegHull.resize(this->safeLegHull[supportLeg].size());
   for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
     genSafeSupportLegHull[i] = supportPoseHorizontal * this->safeLegHull[supportLeg][i];
+    forDebug[i*2+0] = genSafeSupportLegHull[i][0];
+    forDebug[i*2+1] = genSafeSupportLegHull[i][1];
   }
 
   //std::vector< std::vector<cnoid::Vector3> > steppableRegion; // generate frame. 今の脚の位置からの距離が時刻tに着地することができる範囲. Z成分には0を入れる
@@ -900,39 +902,162 @@ void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
   cnoid::Position swingPose = genCoords[swingLeg].value();
   cnoid::Position supportPose = genCoords[supportLeg].value();
   cnoid::Position supportPoseHorizontal = mathutil::orientCoordToAxis(supportPose, cnoid::Vector3::UnitZ());
-  std::vector<cnoid::Vector3> genSafeSupportLegHull;
-  genSafeSupportLegHull.resize(this->safeLegHull[supportLeg].size());
+  //std::vector<cnoid::Vector3> genSafeSupportLegHull;
+  //genSafeSupportLegHull.resize(this->safeLegHull[supportLeg].size());
+  //for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
+  //  genSafeSupportLegHull[i] = supportPoseHorizontal * this->safeLegHull[supportLeg][i];
+  //}
+  
+  //supportLeg座標系に直す（xy分離のため）
+  cnoid::Vector3 cp = supportPoseHorizontal.inverse() * actDCM;
+  swingPose = supportPoseHorizontal.inverse() * swingPose;
+
+  double tmin = 0.1;
+  cnoid::Vector3 zmpv = cnoid::Vector3(0.0, 0.0, 0.0);
+  cnoid::Vector3 vmax = cnoid::Vector3(1.0, 1.0, 0.0);;
+
+  //safeLegHullが長方形であることを仮定(xy分離のため)
+  cnoid::Vector3 zmpMin = cnoid::Vector3::Zero();
+  cnoid::Vector3 zmpMax = cnoid::Vector3::Zero();
   for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
-    genSafeSupportLegHull[i] = supportPoseHorizontal * this->safeLegHull[supportLeg][i];
-    forDebug[i*2+0] = genSafeSupportLegHull[i][0];
-    forDebug[i*2+1] = genSafeSupportLegHull[i][1];
+    if (zmpMin[0]  > this->safeLegHull[supportLeg][i][0]) zmpMin[0] = this->safeLegHull[supportLeg][i][0];
+    if (zmpMax[0]  < this->safeLegHull[supportLeg][i][0]) zmpMax[0] = this->safeLegHull[supportLeg][i][0];
+    if (zmpMin[1]  > this->safeLegHull[supportLeg][i][1]) zmpMin[1] = this->safeLegHull[supportLeg][i][1];
+    if (zmpMax[1]  < this->safeLegHull[supportLeg][i][1]) zmpMax[1] = this->safeLegHull[supportLeg][i][1];
   }
 
-  if (mathutil::isInsideHull(actDCM, genSafeSupportLegHull)) {
-    reachableCaptureRegionHull.resize(genSafeSupportLegHull.size());
-    for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
-      reachableCaptureRegionHull[i] = std::exp(omega * maxTime) * (actDCM - genSafeSupportLegHull[i]) + genSafeSupportLegHull[i];
+  double tmpMin, tmpMax;
+  std::vector<std::vector<double> > samplingTime = std::vector<std::vector<double> >{std::vector<double>(), std::vector<double>(), std::vector<double>()};//0...x, 1...y, 2...merge
+  for (int i=0; i<2; i++) {
+    tmpMin = tmin, tmpMax = 20;
+    if (calcCRMinMaxTime(tmpMin, tmpMax, 0.001, omega, cp[i], zmpMin[i], zmpv[i], tmin, vmax[i], swingPose.translation()[i])) {
+      samplingTime[i].push_back(tmpMin+0.001);
+      samplingTime[i].push_back(tmpMax-0.001);
     }
-  } else {
-    std::vector<cv::Point2f> cpList;
-    for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
-      cnoid::Vector3 minCP = std::exp(omega * minTime) * (actDCM - genSafeSupportLegHull[i]) + genSafeSupportLegHull[i];
-      cnoid::Vector3 maxCP = std::exp(omega * maxTime) * (actDCM - genSafeSupportLegHull[i]) + genSafeSupportLegHull[i];
-      cpList.emplace_back(cv::Point2f(minCP[0], minCP[1]));
-      cpList.emplace_back(cv::Point2f(maxCP[0], maxCP[1]));
+    tmpMin = tmin, tmpMax = 20;
+    if (calcCRMinMaxTime(tmpMin, tmpMax, 0.001, omega, cp[i], zmpMax[i], zmpv[i], tmin, vmax[i], swingPose.translation()[i])) {
+      samplingTime[i].push_back(tmpMin+0.001);
+      samplingTime[i].push_back(tmpMax-0.001);
     }
-    std::vector<cv::Point2f> hull;
-    cv::convexHull(cpList, hull);
-    
-    reachableCaptureRegionHull.resize(hull.size());
-    for (int i=0; i<hull.size(); i++) {
-      reachableCaptureRegionHull[i] = cnoid::Vector3(hull[i].x, hull[i].y, 0);
-      if (i<6) {
-      } else {
-        std::cout << "6yorioooooooooooooooooooooooooooooooi" << std::endl;
-      }
+    if (fcp(tmin, omega, cp[i], zmpMax[i], zmpv[i]) < swingPose.translation()[i] && swingPose.translation()[i] < fcp(tmin, omega, cp[i], zmpMin[i], zmpv[i])) { //zmpMinMax反転するので注意
+      samplingTime[i].push_back(tmin);
+    }
+    if (fcp(maxTime, omega, cp[i], zmpMax[i], zmpv[i]) < fsw(maxTime, tmin, vmax[i], swingPose.translation()[i]) && fsw(maxTime, tmin, -vmax[i], swingPose.translation()[i]) < fcp(tmin, omega, cp[i], zmpMin[i], zmpv[i])) {
+      samplingTime[i].push_back(maxTime);
+    }
+    std::sort(samplingTime[i].begin(), samplingTime[i].end());
+  }
+
+  if(samplingTime[0].size() < 2 || samplingTime[1].size() < 2) {
+    std::cout << "ssssssssssssssssssaaaaaaaaaaaaaaaaaaaaaaammmmmmmmmmmmmmmmmmmmmppppppppppppppppppppplllllllllllllllllllllllliiiiiiiiiiiiiiiiiiiiinnnnnnnnnnnnnnnnnnnnnggggggggggggggggeeeeeeeeeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrroooooooooooooooooooooooooorrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr" << std::endl;
+    samplingTime[0].push_back(tmin);
+    samplingTime[0].push_back(maxTime);
+    samplingTime[1].push_back(tmin);
+    samplingTime[1].push_back(maxTime);
+  }
+  
+  tmpMin = std::max(samplingTime[0][0], samplingTime[1][0]);
+  tmpMax = std::min(samplingTime[0].back(), samplingTime[1].back());
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < samplingTime[i].size(); j++) {
+      if (tmpMin <= samplingTime[i][j] && samplingTime[i][j] <= tmpMax) samplingTime[2].push_back(samplingTime[i][j]);
     }
   }
+
+  forDebug[22] = omega;
+  forDebug[23] = cp[0];
+  forDebug[24] = cp[1];
+  forDebug[25] = zmpMax[0];
+  forDebug[26] = zmpMax[1];
+  forDebug[27] = zmpMin[0];
+  forDebug[28] = zmpMin[1];
+  forDebug[29] = swingPose.translation()[0];
+  forDebug[30] = swingPose.translation()[1];
+  forDebug[31] = samplingTime[0][0];
+  forDebug[32] = samplingTime[0].back();
+  forDebug[33] = samplingTime[1][0];
+  forDebug[34] = samplingTime[1].back();
+
+  for (int i = 1; i < 10; i++) {
+    samplingTime[2].push_back(tmpMin + (tmpMax - tmpMin) * double(i) / 10.0);
+  }
+  std::sort(samplingTime[2].begin(), samplingTime[2].end());
+
+  forDebug[35] = samplingTime[2][0];
+  forDebug[36] = samplingTime[2].back();
+
+  std::vector<cv::Point2f> cpList;
+  for (int i=0; i<samplingTime[2].size(); i++) {
+    double cpMaxX = fcp(samplingTime[2][i], omega, cp[0], zmpMin[0], zmpv[0]);
+    double cpMinX = fcp(samplingTime[2][i], omega, cp[0], zmpMax[0], zmpv[0]);
+    double cpMaxY = fcp(samplingTime[2][i], omega, cp[1], zmpMin[1], zmpv[1]);
+    double cpMinY = fcp(samplingTime[2][i], omega, cp[1], zmpMax[1], zmpv[1]);
+
+    double swMaxX = fsw(samplingTime[2][i], tmin, vmax[0], swingPose.translation()[0]);
+    double swMinX = fsw(samplingTime[2][i], tmin, -vmax[0], swingPose.translation()[0]);
+    double swMaxY = fsw(samplingTime[2][i], tmin, vmax[1], swingPose.translation()[1]);
+    double swMinY = fsw(samplingTime[2][i], tmin, -vmax[1], swingPose.translation()[1]);
+    if (samplingTime[0].size() < 2 || samplingTime[1].size() < 2) {
+      swMaxX = 1e+5;
+      swMinX = -1e+5;
+      swMaxY = 1e+5;
+      swMinY = -1e+5;
+    }
+
+    if (std::max(cpMinX, swMinX) < std::min(cpMaxX, swMaxX) && std::max(cpMinY, swMinY) < std::min(swMaxY, swMaxY)) {
+      cpList.emplace_back(cv::Point2f(std::max(cpMinX, swMinX), std::max(cpMinY, swMinY)));
+      cpList.emplace_back(cv::Point2f(std::max(cpMinX, swMinX), std::min(cpMaxY, swMaxY)));
+      cpList.emplace_back(cv::Point2f(std::min(cpMaxX, swMaxX), std::max(cpMinY, swMinY)));
+      cpList.emplace_back(cv::Point2f(std::min(cpMaxX, swMaxX), std::min(cpMaxY, swMaxY)));
+    } else {
+      std::cout << "okasiiyo" << std::endl;
+    }
+  }
+  std::vector<cv::Point2f> hull;
+  cv::convexHull(cpList, hull);
+
+  reachableCaptureRegionHull.resize(hull.size());
+  for (int i=0; i<hull.size(); i++) {
+    reachableCaptureRegionHull[i] = supportPoseHorizontal * cnoid::Vector3(hull[i].x, hull[i].y, 0); //座標系戻す
+  }
+}
+
+bool FootStepGenerator::calcCRMinMaxTime(double& minTime, double& maxTime, double delta, double omega, double cp, double zmp, double zmpv, double tmin, double vmax, double sw) const{
+  double tmpTime = tmin;
+  if (cp < zmp + zmpv/omega) { //fcpが増加していくようにする
+    cp = -cp;
+    zmp = -zmp;
+    zmpv = -zmpv;
+    sw = -sw;
+  }
+  if (sw > fcp(tmin, omega, cp, zmp, zmpv)) {
+    while (fsw(tmpTime, tmin, -vmax, sw) - fcp(tmpTime, omega, cp, zmp, zmpv) > delta) {
+      double dx = dfsw(tmpTime, -vmax) - dfcp(tmpTime, omega, cp, zmp, zmpv);
+      if (dx > 0) {
+        return false;
+      }
+      tmpTime = tmpTime - (fsw(tmpTime, tmin, -vmax, sw) - fcp(tmpTime, omega, cp, zmp, zmpv))/dx;
+    }
+  } else {
+    while (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > delta) {
+      double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, vmax);
+      if (dx > 0) {
+        return false;
+      }
+      tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw))/dx;
+    }
+  }
+  minTime = tmpTime;
+  tmpTime = maxTime;
+  while (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > delta) {
+    double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, vmax);
+    if (dx < 0) {
+      return false;
+    }
+    tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw))/dx;
+  }
+  maxTime = tmpTime;
+  return true;
 }
 
 // 早づきしたらremainTimeをdtに減らしてすぐに次のnodeへ移る. この機能が無いと少しでもロボットが傾いて早づきするとジャンプするような挙動になる. 遅づきに備えるために、着地位置を下方にオフセットさせる

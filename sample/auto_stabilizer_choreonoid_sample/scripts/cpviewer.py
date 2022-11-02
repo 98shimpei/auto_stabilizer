@@ -52,6 +52,7 @@ args = sys.argv
 tmpdata = np.loadtxt(args[1]+"ast_tmpOut")
 cpdata = np.loadtxt(args[1]+"ast_actDcmOut")
 landingdata = np.loadtxt(args[1]+"ast_dstLandingPosOut")
+gencoordsdata = np.loadtxt(args[1]+"ast_genCoordsOut")
 cr_data = []
 with open(args[1]+"ast_captureRegionOut") as f:
     for line in f:
@@ -100,6 +101,8 @@ while True:
     cv2.circle(img, reshape_pos(cpdata[i][1:3]), 10, (0, 0, 255), -1)
     cv2.circle(img, reshape_pos(landingdata[i][1:3]), 10, (255, 0, 0), -1)
     cv2.circle(img, reshape_pos(landingdata[i][4:6]), 10, (255, 0, 0), -1)
+    cv2.circle(img, reshape_pos(gencoordsdata[i][1:3]), 10, (100, 255, 0), -1)
+    cv2.circle(img, reshape_pos(gencoordsdata[i][4:6]), 10, (100, 255, 0), -1)
     cv2.circle(img, reshape_pos(tmpdata[i][17:19]), 5, (255, 0, 255), -1)
     cv2.line(img, reshape_pos(tmpdata[i][19:21]), reshape_pos(tmpdata[i][21:23]), (255, 100, 100), 3)
     for j in range(zmplimit.shape[0]):
@@ -143,7 +146,7 @@ while True:
     elif key == 32:
         mode = "play"
     elif key == 13:
-        print(tmpdata[i][0])
+        print(tmpdata[i][0], tmpdata[i][23], tmpdata[i][24], tmpdata[i][25], tmpdata[i][26], tmpdata[i][27], tmpdata[i][28], tmpdata[i][29], tmpdata[i][30], tmpdata[i][31], " : ", tmpdata[i][32], tmpdata[i][33], tmpdata[i][34], tmpdata[i][35], tmpdata[i][36], tmpdata[i][37])
     elif key == 27:
         break
     #if key != -1:
