@@ -138,6 +138,7 @@ public:
   std::vector<bool> isLandingGainPhase = std::vector<bool>(NUM_LEGS,false);
   double elapsedTime = 0.0; // 現在のfootstep開始時からの経過時間
   std::vector<bool> prevSupportPhase = std::vector<bool>{true, true}; // 要素数2. rleg: 0. lleg: 1. 一つ前の周期でSupportPhaseだったかどうか
+  double overwritableTime = 0.15; //いつまで遊脚軌道目標を水平方向へ動かすか。必ずLegCoordsGeneratorのdelayTimeOffset以上の値にすること。delayTimeOffsetとlandingTimeGainPhaseの値から調整する（遊脚減速できる>範囲でできるだけ小さく
 
   // LegCoordsGenerator
   std::vector<cpp_filters::TwoPointInterpolatorSE3> genCoords = std::vector<cpp_filters::TwoPointInterpolatorSE3>(NUM_LEGS, cpp_filters::TwoPointInterpolatorSE3(cnoid::Position::Identity(),cnoid::Vector6::Zero(),cnoid::Vector6::Zero(),cpp_filters::HOFFARBIB)); // 要素数2. rleg: 0. lleg: 1. generate frame. 現在の位置

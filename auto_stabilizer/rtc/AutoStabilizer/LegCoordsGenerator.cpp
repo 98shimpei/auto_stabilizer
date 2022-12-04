@@ -109,21 +109,31 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
 
       //とりあえず置いとく変数
       cnoid::Vector3 maxSwingVel = cnoid::Vector3{1.8, 1.8, 0.5}; //最大速度
-      double liftHeight = std::max(gaitParam.srcCoords[leg].translation()[2] + gaitParam.footstepNodesList[0].stepHeight[leg][0] * 0.5,
-                               gaitParam.footstepNodesList[0].dstCoords[leg].translation()[2] + gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.5); // 足上げ高さ. generate frame
-      double downHeight = gaitParam.footstepNodesList[0].dstCoords[leg].translation()[2] + gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.7;//SWING_PHASEから移行する高さ
+      double airHeight = gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.3; //TODO 片足立ち考えてない
+      double liftHeight = std::max(gaitParam.srcCoords[leg].translation()[2] + gaitParam.footstepNodesList[0].stepHeight[leg][0] * 0.3,
+                               gaitParam.footstepNodesList[0].dstCoords[leg].translation()[2] + gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.3); // 足上げ高さ. generate frame
 
       cnoid::Vector3 goalPos = antecedentCoords.translation();
       cnoid::Vector6 goalVel = antecedentVel;
 
-      //PHASE移行
-      if (swingState[leg] == GaitParam::LIFT_PHASE && antecedentCoords.translation()[2] > liftHeight) {//liftHeightに達した
+      //PHASE移行 GROUND時のみ変化なし
+      //LIFT  ... 初期の足上げ。liftHeightに到達したらSWINGへ、以降LIFTphaseになることはない
+      //SWING ... XYにも移動する。
+      //GROUND... 着地位置修正禁止
+      if (swingState[leg] == GaitParam::LIFT_PHASE && antecedentCoords.translation()[2] > liftHeight) {
         swingState[leg] = GaitParam::SWING_PHASE;
-      } else if (swingState[leg] == GaitParam::SWING_PHASE && antecedentCoords.translation()[2] > dstCoords.translation()[2] && gaitParam.footstepNodesList[0].remainTime - this->delayTimeOffset <= (antecedentCoords.translation()[2] - dstCoords.translation()[2]) / maxSwingVel[2] && antecedentCoords.translation()[2] < downHeight) {//足下げ中にdownHeightに達した
-        swingState[leg] = GaitParam::DOWN_PHASE;
-      } else if (gaitParam.footstepNodesList[0].remainTime <= this->delayTimeOffset) {
+      }
+      if (gaitParam.footstepNodesList[0].remainTime <= std::max(this->delayTimeOffset, gaitParam.overwritableTime)) {
         swingState[leg] = GaitParam::GROUND_PHASE;
       }
+
+      //if (swingState[leg] == GaitParam::LIFT_PHASE && antecedentCoords.translation()[2] > liftHeight) {//liftHeightに達した
+      //  swingState[leg] = GaitParam::SWING_PHASE;
+      //} else if (swingState[leg] == GaitParam::SWING_PHASE && antecedentCoords.translation()[2] > dstCoords.translation()[2] && gaitParam.footstepNodesList[0].remainTime - this->delayTimeOffset <= (antecedentCoords.translation()[2] - dstCoords.translation()[2]) / maxSwingVel[2] && antecedentCoords.translation()[2] < downHeight) {//足下げ中にdownHeightに達した
+      //  swingState[leg] = GaitParam::DOWN_PHASE;
+      //} else if (gaitParam.footstepNodesList[0].remainTime <= this->delayTimeOffset) {
+      //  swingState[leg] = GaitParam::GROUND_PHASE;
+      //}
 
       //isLandingGainPhase
       if (gaitParam.footstepNodesList[0].remainTime < 0.08) {
@@ -131,9 +141,9 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
       }
 
       //Z
-      if (swingState[leg] == GaitParam::GROUND_PHASE || (antecedentCoords.translation()[2] > dstCoords.translation()[2] && gaitParam.footstepNodesList[0].remainTime - this->delayTimeOffset <= (antecedentCoords.translation()[2] - dstCoords.translation()[2]) / maxSwingVel[2])) { //着地位置がdst
+      if (swingState[leg] == GaitParam::GROUND_PHASE || (antecedentCoords.translation()[2] > dstCoords.translation()[2] && gaitParam.footstepNodesList[0].remainTime - this->delayTimeOffset <= (antecedentCoords.translation()[2] - dstCoords.translation()[2]) / maxSwingVel[2])) { //目標位置がdst
         goalPos[2] = std::max(goalPos[2] - dt*maxSwingVel[2], dstCoords.translation()[2]);
-      } else { //着地位置がheight
+      } else { //目標位置がheight
         if (antecedentCoords.translation()[2] > height) {
           goalPos[2] = goalPos[2] - dt*maxSwingVel[2];
         } else if (antecedentCoords.translation()[2] < height) {
@@ -152,22 +162,22 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
       }
 
       //XY
-      if (swingState[leg] == GaitParam::SWING_PHASE) {//通常SWING_PHASEまでにX移動は終了する
+      if (swingState[leg] == GaitParam::SWING_PHASE && antecedentCoords.translation()[2] > dstCoords.translation()[2]) {
         cnoid::Vector3 swingVel = cnoid::Vector3::Zero();
-        for (int j = 0; j < 2; j++) {//X, Y
-          swingVel[j] = std::min(maxSwingVel[j], std::max(-maxSwingVel[j], (dstCoords.translation() - antecedentCoords.translation())[j] / (gaitParam.footstepNodesList[0].remainTime - this->delayTimeOffset - gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.7 / maxSwingVel[2])));
+        for (int j=0; j<2; j++) {
+          if (gaitParam.footstepNodesList[0].remainTime - this->delayTimeOffset - (height - gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.3) / maxSwingVel[2] > 0) {//通常遊脚期間
+            swingVel[j] = std::min(maxSwingVel[j], std::max(-maxSwingVel[j], (dstCoords.translation() - antecedentCoords.translation())[j] / (gaitParam.footstepNodesList[0].remainTime - this->delayTimeOffset - (height - gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.3) / maxSwingVel[2])));
+          } else {//着地位置修正により通常遊脚期間を超えて修正が必要な時
+            if (antecedentCoords.translation()[j] < dstCoords.translation()[j]) {
+              swingVel[j] = maxSwingVel[j];
+            } else if (antecedentCoords.translation()[j] > dstCoords.translation()[j]) {
+              swingVel[j] = -maxSwingVel[j];
+            }
+          }
+          goalPos[j] = goalPos[j] + dt*swingVel[j];
         }
-        goalPos.head(2) = goalPos.head(2) + dt*swingVel.head(2);
-      } else if (swingState[leg] == GaitParam::DOWN_PHASE) {//DOWN_PHASE中の微調整
-        for (int j = 0; j < 2; j++) {
-          if (antecedentCoords.translation()[j] > dstCoords.translation()[j]) {
-            goalPos[j] = goalPos[j] - dt*maxSwingVel[j];
-          } else if (antecedentCoords.translation()[j] < dstCoords.translation()[j]) {
-            goalPos[j] = goalPos[j] + dt*maxSwingVel[j];
-          }
-          if (std::abs(antecedentCoords.translation()[j] - dstCoords.translation()[j]) < dt*maxSwingVel[j]) {
-            goalPos[j] = dstCoords.translation()[j];
-          }
+        if (std::abs(antecedentCoords.translation()[j] - dstCoords.translation()[j]) < dt*maxSwingVel[j]) {
+          goalPos[j] = dstCoords.translation()[j];
         }
       }
 
