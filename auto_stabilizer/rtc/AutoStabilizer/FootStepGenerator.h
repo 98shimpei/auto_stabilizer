@@ -126,7 +126,7 @@ public:
   */
   bool calcFootSteps(const GaitParam& gaitParam, const double& dt, bool useActState,
                      GaitParam::DebugData& debugData, //for Log
-                     std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<GaitParam::SwingState_enum>& o_swingState) const;
+                     std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<GaitParam::SwingState_enum>& o_swingState, int& landingTargetCounter) const;
 
 protected:
   // 早づきしたらremainTimeをdtに減らしてすぐに次のnodeへ移る. この機能が無いと少しでもロボットが傾いて早づきするとジャンプするような挙動になる.
@@ -139,7 +139,7 @@ protected:
   // emergengy step.
   void checkEmergencyStep(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam) const;
   // 着地位置・タイミング修正
-  void modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<GaitParam::SwingState_enum>& swingState, // input & output
+  void modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<GaitParam::SwingState_enum>& swingState, int& landingTargetCounter, // input & output
                        GaitParam::DebugData& debugData, //for Log
                        const GaitParam& gaitParam) const;
   double calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const double& stepHeight, const cnoid::Vector3& actDCM, const GaitParam& gaitParam, GaitParam::DebugData& debugData) const;

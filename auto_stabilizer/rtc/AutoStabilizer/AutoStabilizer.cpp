@@ -616,7 +616,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
                                           gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.isLandingGainPhase, gaitParam.elapsedTime, gaitParam.prevSupportPhase, gaitParam.relLandingHeight, gaitParam.wheelVel, gaitParam.doubleSupportZmpOffset, gaitParam.legOdomUpdateFlag);
   footStepGenerator.calcFootSteps(gaitParam, dt, mode.isSTRunning(),
                                   gaitParam.debugData, //for log
-                                  gaitParam.footstepNodesList, gaitParam.swingState);
+                                  gaitParam.footstepNodesList, gaitParam.swingState, gaitParam.landingTargetCounter);
   legCoordsGenerator.calcLegCoords(gaitParam, dt, mode.isSTRunning(),
                                    gaitParam.refZmpTraj, gaitParam.genCoords, gaitParam.swingState, gaitParam.isLandingGainPhase);
   legCoordsGenerator.calcCOMCoords(gaitParam, dt,
@@ -687,10 +687,18 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
     cnoid::Position rlegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[RLEG], cnoid::Vector3::UnitZ());
     cnoid::Position llegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[LLEG], cnoid::Vector3::UnitZ());
     if(gaitParam.legOdomSupportLeg == LLEG && gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[1].isSupportPhase[LLEG]) {
+      //rlegPose.translation() += cnoid::Vector3(0.025, 0, 0);
+      cnoid::Position tmpPose = llegPose.inverse() * rlegPose;
+      tmpPose.translation() *= 1.2;
+      rlegPose = llegPose * tmpPose;
       gaitParam.legOdom = rlegPose.inverse() * llegPose * gaitParam.legOdom;
       gaitParam.legOdomSupportLeg = RLEG;
     }
     if(gaitParam.legOdomSupportLeg == RLEG && !gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && gaitParam.footstepNodesList[1].isSupportPhase[LLEG]) {
+      //llegPose.translation() += cnoid::Vector3(0.025, 0, 0);
+      cnoid::Position tmpPose = rlegPose.inverse() * llegPose;
+      tmpPose.translation() *= 1.2;
+      llegPose = rlegPose * tmpPose;
       gaitParam.legOdom = llegPose.inverse() * rlegPose * gaitParam.legOdom;
       gaitParam.legOdomSupportLeg = LLEG;
     }
@@ -701,7 +709,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
 }
 
 // static function
-bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoStabilizer::ControlMode& mode, cpp_filters::TwoPointInterpolator<double>& idleToAbcTransitionInterpolator, double dt, const GaitParam& gaitParam){
+bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoStabilizer::ControlMode& mode, cpp_filters::TwoPointInterpolator<double>& idleToAbcTransitionInterpolator, int& landingTargetCounter, double dt, const GaitParam& gaitParam){
   if(mode.isSyncToABC()){
     if(mode.isSyncToABCInit()){
       idleToAbcTransitionInterpolator.reset(0.0);
@@ -873,15 +881,20 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
       (!gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && gaitParam.footstepNodesList[0].isSupportPhase[LLEG])) && // 今が片足支持
      (gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && gaitParam.footstepNodesList[1].isSupportPhase[LLEG]) // 次が両足支持
      ) {
-    int supportLeg = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? RLEG : LLEG;
-    int swingLeg = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? LLEG : RLEG;
-    ports.m_landingTarget_.tm = ports.m_qRef_.tm;
-    cnoid::Position supportPoseHorizontal = mathutil::orientCoordToAxis(gaitParam.genCoords[supportLeg].value(), cnoid::Vector3::UnitZ());
-    ports.m_landingTarget_.data.x = (supportPoseHorizontal.inverse() * gaitParam.footstepNodesList[0].dstCoords[swingLeg].translation())[0];
-    ports.m_landingTarget_.data.y = (supportPoseHorizontal.inverse() * gaitParam.footstepNodesList[0].dstCoords[swingLeg].translation())[1];
-    ports.m_landingTarget_.data.z = (supportPoseHorizontal.inverse() * gaitParam.footstepNodesList[0].dstCoords[swingLeg].translation())[2];
-    ports.m_landingTarget_.data.l_r = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? auto_stabilizer_msgs::RLEG : auto_stabilizer_msgs::LLEG;
-    ports.m_landingTargetOut_.write();
+    if (landingTargetCounter <= 0) {
+      int supportLeg = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? RLEG : LLEG;
+      int swingLeg = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? LLEG : RLEG;
+      ports.m_landingTarget_.tm = ports.m_qRef_.tm;
+      cnoid::Position supportPoseHorizontal = mathutil::orientCoordToAxis(gaitParam.genCoords[supportLeg].value(), cnoid::Vector3::UnitZ());
+      ports.m_landingTarget_.data.x = (supportPoseHorizontal.inverse() * gaitParam.footstepNodesList[0].dstCoords[swingLeg].translation())[0];
+      ports.m_landingTarget_.data.y = (supportPoseHorizontal.inverse() * gaitParam.footstepNodesList[0].dstCoords[swingLeg].translation())[1];
+      ports.m_landingTarget_.data.z = (supportPoseHorizontal.inverse() * gaitParam.footstepNodesList[0].dstCoords[swingLeg].translation())[2];
+      ports.m_landingTarget_.data.l_r = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? auto_stabilizer_msgs::RLEG : auto_stabilizer_msgs::LLEG;
+      ports.m_landingTargetOut_.write();
+      landingTargetCounter = 10;
+    } else {
+      landingTargetCounter--;
+    }
   }
 
   //legOdom
@@ -1075,7 +1088,7 @@ RTC::ReturnCode_t AutoStabilizer::onExecute(RTC::UniqueId ec_id){
     AutoStabilizer::execAutoStabilizer(this->mode_, this->gaitParam_, this->dt_, this->footStepGenerator_, this->legCoordsGenerator_, this->refToGenFrameConverter_, this->actToGenFrameConverter_, this->impedanceController_, this->stabilizer_,this->externalForceHandler_, this->fullbodyIKSolver_, this->legManualController_, this->cmdVelGenerator_);
   }
 
-  AutoStabilizer::writeOutPortData(this->ports_, this->mode_, this->idleToAbcTransitionInterpolator_, this->dt_, this->gaitParam_);
+  AutoStabilizer::writeOutPortData(this->ports_, this->mode_, this->idleToAbcTransitionInterpolator_, gaitParam_.landingTargetCounter, this->dt_, this->gaitParam_);
 
   return RTC::RTC_OK;
 }

@@ -273,7 +273,7 @@ bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const 
 
 bool FootStepGenerator::calcFootSteps(const GaitParam& gaitParam, const double& dt, bool useActState,
                                       GaitParam::DebugData& debugData, //for Log
-                                      std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<GaitParam::SwingState_enum>& o_swingState) const{
+                                      std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<GaitParam::SwingState_enum>& o_swingState, int& landingTargetCounter) const{
   std::vector<GaitParam::FootStepNodes> footstepNodesList = gaitParam.footstepNodesList;
   std::vector<GaitParam::SwingState_enum> swingState = gaitParam.swingState;
 
@@ -297,7 +297,7 @@ bool FootStepGenerator::calcFootSteps(const GaitParam& gaitParam, const double& 
     }
 
     if(this->isModifyFootSteps){
-      this->modifyFootSteps(footstepNodesList, swingState, debugData, gaitParam);
+      this->modifyFootSteps(footstepNodesList, swingState, landingTargetCounter, debugData, gaitParam);
     }
   }
 
@@ -368,9 +368,10 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
   steppableHeightError = 0;
   for(int i=0;i<NUM_LEGS;i++){
     if(footstepNodesList[1].isSupportPhase[i] && gaitParam.elapsedTime > 0.1){
-      cnoid::Position targetCoords = footstepNodesList[0].dstCoords[i];
-      targetCoords.translation() = gaitParam.actEEPose[i].translation();
-      cnoid::Position transform = targetCoords * footstepNodesList[0].dstCoords[i].inverse(); // generate frame
+      //cnoid::Position targetCoords = footstepNodesList[0].dstCoords[i];
+      //targetCoords.translation() = gaitParam.actEEPose[i].translation();
+      //cnoid::Position transform = targetCoords * footstepNodesList[0].dstCoords[i].inverse(); // generate frame
+      cnoid::Position transform = gaitParam.genCoords[i].value() * footstepNodesList[0].dstCoords[i].inverse();
       if(transform.translation().norm() < this->contactModificationThreshold) transform = cnoid::Position::Identity(); // ズレが大きい場合のみずらす
       this->transformCurrentSupportSteps(i, footstepNodesList, 1, transform); // 遊脚になるまで、位置姿勢をその足の今の偏差にあわせてずらす.
     }
@@ -531,7 +532,7 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<std::pair<st
   return os;
 }
 
-void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<GaitParam::SwingState_enum>& swingState, // input & output
+void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<GaitParam::SwingState_enum>& swingState, int& landingTargetCounter, // input & output
                                         GaitParam::DebugData& debugData, //for Log
                                         const GaitParam& gaitParam) const{
   debugData.cpViewerLog[18] = 0;
@@ -753,6 +754,11 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     return;
   }
 
+  ////steppableRegionが変わっているときは必ずlandingTargetをpublishする
+  //if(!(newHeight == prevHeight || newHeight == footstepNodesList[0].dstCoords[swingLeg].translation()[2])) {
+  //  landingTargetCounter = 0;
+  //}
+
   //landingHeightから受け取った値を用いて着地高さを変更
   //ココでのHeight変更はDOWN_PHASEも受け付ける
   if (gaitParam.relLandingHeight > -1e+10) {
@@ -761,6 +767,10 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     steppableHeightError = 0;
     newHeight = gaitParam.relLandingHeight;
   }
+
+  //if(gaitParam.elapsedTime < 0.005) {
+  //  newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2] + 0.05 * ((int)((gaitParam.actEEPose[RLEG].translation()(2) + gaitParam.actEEPose[LLEG].translation()(1)) * 100000.0)%157 / 157.0 - 0.5);
+  //}
 
   //次の周回からstairTimeを有効化
   if (std::abs(newHeight - gaitParam.srcCoords[swingLeg].translation()[2]) > 0.05) {
@@ -1461,12 +1471,27 @@ void FootStepGenerator::checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes
          footstepNodesList[0].stopCurrentPosition[leg] == false){ // まだ地面についていない
 
         if(actLegWrenchFilter[leg].value()[2] > this->contactDetectionThreshold /*generate frame. ロボットが受ける力*/) {// 力センサの値が閾値以上
-          if(footstepNodesList[0].stopCurrentPosition[leg] == false) {
-            if (gaitParam.elapsedTime > 0.1){
-              footstepNodesList[0].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
-              footstepNodesList[1].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
-            }
-          }
+          //if(footstepNodesList[0].stopCurrentPosition[leg] == false) {//一度だけ行う。actEEPoseをベースに調整した高さに変える
+          //  if (gaitParam.elapsedTime > 0.1){
+          //    if (footstepNodesList[0].isSupportPhase[RLEG] && !footstepNodesList[0].isSupportPhase[LLEG]) {//右足支持期
+          //      if (leg == RLEG) {
+          //        footstepNodesList[0].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation() - cnoid::Vector3(0, 0, 0.017);
+          //        footstepNodesList[1].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation() - cnoid::Vector3(0, 0, 0.017);
+          //      } else {
+          //        footstepNodesList[0].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
+          //        footstepNodesList[1].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
+          //      }
+          //    } else if (!footstepNodesList[0].isSupportPhase[RLEG] && footstepNodesList[0].isSupportPhase[LLEG]){ //左足支持期
+          //      if (leg == LLEG) {
+          //        footstepNodesList[0].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation() - cnoid::Vector3(0, 0, 0.017);
+          //        footstepNodesList[1].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation() - cnoid::Vector3(0, 0, 0.017);
+          //      } else {
+          //        footstepNodesList[0].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
+          //        footstepNodesList[1].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
+          //      }
+          //    }
+          //  }
+          //}
           footstepNodesList[0].stopCurrentPosition[leg] = true;
         }else if(footstepNodesList[0].remainTime <= dt && // remainTimeが0になる
                  footstepNodesList[0].touchVel[leg] > 0.0 && // touchVelが0ならいつまでもつかないのでgoaloffsetを適用しない
