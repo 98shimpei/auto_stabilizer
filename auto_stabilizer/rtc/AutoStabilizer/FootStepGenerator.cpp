@@ -326,7 +326,7 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
     wheelVel = 0;
   }
   if (stairTime != 0) {
-    footstepNodesList[1].remainTime += 0.15;
+    footstepNodesList[1].remainTime += 0.30;
   }
   stairTime = 0;
 
@@ -773,7 +773,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   //}
 
   //次の周回からstairTimeを有効化
-  if (std::abs(newHeight - gaitParam.srcCoords[swingLeg].translation()[2]) > 0.05) {
+  if (std::abs(newHeight - gaitParam.srcCoords[swingLeg].translation()[2]) > 0.04) {
     stairTime = 0.3;
   } else {
     stairTime = 0.0;

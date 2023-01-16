@@ -43,8 +43,10 @@ public:
         //landingDgain[i] = {10,10,10,10,5,5};
         //swingPgain[i] = {5,30,20,10,5,5};
         //swingDgain[i] = {10,30,20,20,30,30};
-        supportPgain[i] = {5,15,10,5,0.2,0.2};
-        supportDgain[i] = {10,20,20,10,5,5};
+        supportPgain[i] = {5,15,20,15,0.2,0.2};
+        supportDgain[i] = {10,20,50,40,5,5};
+        //supportPgain[i] = {5,15,10,5,0.2,0.2};
+        //supportDgain[i] = {10,20,20,10,5,5};
         landingSupportPgain[i] = {5,15,10,5,0.2,0.2};
         landingSupportDgain[i] = {10,20,20,10,5,5};
         landingPgain[i] = {5,15,1,1,0.2,0.2};

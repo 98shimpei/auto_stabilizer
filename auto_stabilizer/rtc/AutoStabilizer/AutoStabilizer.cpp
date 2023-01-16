@@ -689,7 +689,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
     if(gaitParam.legOdomSupportLeg == LLEG && gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[1].isSupportPhase[LLEG]) {
       //rlegPose.translation() += cnoid::Vector3(0.025, 0, 0);
       cnoid::Position tmpPose = llegPose.inverse() * rlegPose;
-      tmpPose.translation() *= 1.2;
+      tmpPose.translation()[0] *= 1.2;
       rlegPose = llegPose * tmpPose;
       gaitParam.legOdom = rlegPose.inverse() * llegPose * gaitParam.legOdom;
       gaitParam.legOdomSupportLeg = RLEG;
@@ -697,7 +697,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
     if(gaitParam.legOdomSupportLeg == RLEG && !gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && gaitParam.footstepNodesList[1].isSupportPhase[LLEG]) {
       //llegPose.translation() += cnoid::Vector3(0.025, 0, 0);
       cnoid::Position tmpPose = rlegPose.inverse() * llegPose;
-      tmpPose.translation() *= 1.2;
+      tmpPose.translation()[0] *= 1.2;
       llegPose = rlegPose * tmpPose;
       gaitParam.legOdom = llegPose.inverse() * rlegPose * gaitParam.legOdom;
       gaitParam.legOdomSupportLeg = LLEG;
